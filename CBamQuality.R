@@ -21,7 +21,13 @@ setClass('CBamScaffold', slots=list(ivCoverage='numeric', ivReadWidth='numeric',
 
 
 ## constructor
-CBamScaffold = function(oBamFile, cSeqname, iBinSize=1000, flag = scanBamFlag(), what = scanBamWhat(), fViewSummary=viewMaxs,...){
+## ARGS:
+## oBamFile = object of class BamFile
+## cSeqname = character string with sequence/scaffold name
+## iBinSize = the number of bins to bin the scaffold in
+## flag, what = parameters for the ScanBamParam(flag=flag, what=what, which=which) function
+## fViewSummary = the function to call to get the summary, other options are viewMeans, viewMins, viewSums, viewMaxs
+CBamScaffold = function(oBamFile, cSeqname, iBinSize=1000, flag = scanBamFlag(), what = scanBamWhat(), fViewSummary=viewMeans,...){
   ######### internal functions
   # Function: f_bin_vector
   # DESC: Takes the start and end values of the vector; and the number of
@@ -56,7 +62,7 @@ CBamScaffold = function(oBamFile, cSeqname, iBinSize=1000, flag = scanBamFlag(),
   # create views on these bins
   ivCoverage = fViewSummary(Views(cov, bins$start, bins$end)) 
   ## there is an option to store only a sample of the read width to save on memory 
-  ivReadWidth = width(oGA)
+  ivReadWidth = qwidth(oGA)
   lWhat = vector('list', length=length(what))
   names(lWhat) = what
   # remove objects 
@@ -66,3 +72,46 @@ CBamScaffold = function(oBamFile, cSeqname, iBinSize=1000, flag = scanBamFlag(),
   return(new('CBamScaffold', ivCoverage=ivCoverage, ivReadWidth=ivReadWidth, cSeqname=cSeqname, cBamFile=cBamFile, 
          lWhat=lWhat))
 }
+
+### slot accessors
+CBamScaffold.getCoverage = function(obj) obj@ivCoverage
+CBamScaffold.getReadWidthSample = function(obj, size=1000) sample(obj@ivReadWidth, size = size)
+CBamScaffold.getReadWidth = function(obj) obj@ivReadWidth
+CBamScaffold.getSeqname = function(obj) obj@cSeqname
+CBamScaffold.getBamPath = function(obj) obj@cBamFile
+
+### generic and plotting functions
+
+## plot the distribution of binned coverage
+setGeneric('plot.coverage.distribution', function(obj, title='', ...)standardGeneric('plot.coverage.distribution'))
+setMethod('plot.coverage.distribution', signature = 'CBamScaffold', definition = function(obj, title='', ...){
+  # get the vector of binned coverage
+  t = CBamScaffold.getCoverage(obj)
+  # trim the top 95%
+  t = t[t < quantile(t, prob=c(0.95))]
+  r = range(t)
+  s = seq(max(0.5, floor(r[1]))-0.5, ceiling(r[2])+0.5, by=1)
+  # calculate the mid points for histogram/discrete distribution
+  h = hist(t, breaks=s, plot=F)
+  dg = dgamma(h$mids, mean(t), rate = 1)
+  # which distribution can approximate the frequency
+  hist(t, prob=T, sub='Distribution of Binned Coverage', breaks=s, main=paste(title, 'Sequence', obj@cSeqname),
+       xlab='Coverage', ylab='', ylim=c(0, max(dg, h$density)))
+  # parameterized on the means
+  lines(h$mids, dg, col='black', type='b')
+  points(qgamma(0.95, mean(t), 1), 0, pch=20, col='red')
+  legend('topright', legend =c('Gamma'), fill = c('black'))
+})
+
+## plot the coverage vector
+setGeneric('plot.coverage.vector', function(obj, title='', bLog=F, type='l', ...)standardGeneric('plot.coverage.vector'))
+setMethod('plot.coverage.vector', signature = 'CBamScaffold', definition = function(obj, title='', bLog=F, type='l', ...){
+  # get the vector of binned coverage
+  t = CBamScaffold.getCoverage(obj)
+  # threshold the top 95% if bLog is FALSE
+  if (!bLog) {t[t > quantile(t, prob=c(0.95))] = quantile(t, prob=c(0.95))
+  } else t = log(t+1)
+  plot(t, type=type, sub='Binned Coverage', ylab='Coverage', xlab='Bins', main=paste(title, 'Sequence', obj@cSeqname))
+})
+
+
