@@ -82,6 +82,15 @@ CBamScaffold.getBamPath = function(obj) obj@cBamFile
 
 ### generic and plotting functions
 
+setGeneric('getCoverageGammaParam', function(obj, ...)standardGeneric('getCoverageGammaParam'))
+setMethod('getCoverageGammaParam', signature = 'CBamScaffold', definition = function(obj, ...){
+  # get the vector of binned coverage
+  t = CBamScaffold.getCoverage(obj)
+  # trim the top 95%
+  t = t[t < quantile(t, prob=c(0.95))]
+  return(shape=mean(t))
+})
+
 ## plot the distribution of binned coverage
 setGeneric('plot.coverage.distribution', function(obj, title='', ...)standardGeneric('plot.coverage.distribution'))
 setMethod('plot.coverage.distribution', signature = 'CBamScaffold', definition = function(obj, title='', ...){
