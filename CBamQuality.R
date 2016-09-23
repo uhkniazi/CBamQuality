@@ -88,7 +88,9 @@ setMethod('getCoverageGammaParam', signature = 'CBamScaffold', definition = func
   t = CBamScaffold.getCoverage(obj)
   # trim the top 95%
   t = t[t < quantile(t, prob=c(0.95))]
-  return(shape=mean(t))
+  param = getalphabeta.poisson(t)
+  names(param) = c('shape', 'rate')
+  return(param)
 })
 
 ## plot the distribution of binned coverage
@@ -102,7 +104,8 @@ setMethod('plot.coverage.distribution', signature = 'CBamScaffold', definition =
   s = seq(max(0.5, floor(r[1]))-0.5, ceiling(r[2])+0.5, by=1)
   # calculate the mid points for histogram/discrete distribution
   h = hist(t, breaks=s, plot=F)
-  dg = dgamma(h$mids, mean(t), rate = 1)
+  param = getCoverageGammaParam(obj)
+  dg = dgamma(h$mids, shape = param['shape'], rate = param['rate'])
   # which distribution can approximate the frequency
   hist(t, prob=T, sub='Distribution of Binned Coverage', breaks=s, main=paste(title, 'Sequence', obj@cSeqname),
        xlab='Coverage', ylab='', ylim=c(0, max(dg, h$density)))
@@ -123,4 +126,16 @@ setMethod('plot.coverage.vector', signature = 'CBamScaffold', definition = funct
   plot(t, type=type, sub='Binned Coverage', ylab='Coverage', xlab='Bins', main=paste(title, 'Sequence', obj@cSeqname))
 })
 
-
+## utility functions
+# calculates the gamma prior parameters for a poisson sampling distribution
+# see page 5 in notes here: https://www.evernote.com/shard/s288/res/659dc700-ccb9-457e-aea6-aa54bc3abbb9
+# and for an example see page 154, chapter on Hierarchical Modeling Bayesian Computation with R.
+## DESC: using the poisson sampling model, the data vector is used to count values of alpha (shape), beta (rate)
+## parameters for the gamma prior
+getalphabeta.poisson = function(lambda){
+  m = mean(lambda)
+  v = var(lambda)
+  alpha = (m^2)/v
+  beta = alpha/m
+  return(c(alpha=alpha, beta=beta))
+}
